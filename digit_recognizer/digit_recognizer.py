@@ -21,14 +21,15 @@ test_path = './test.csv'
 image_size = [28, 28]
 num_labels = 10
 num_validation_samples = 1000
-initial_learning_rate = 0.0005
+initial_learning_rate = 0.001
 learning_rate_decay = 0.99
 gamma = 3
-training_epochs = 200
+training_epochs = 100
 batch_size = 1000
 
 num_rotations = 7
 
+print('Loading image data.')
 train_data = pd.read_csv(train_path).values.astype(np.float32)
 train_labels, train_images = np.split(train_data,[1],axis=1)
 train_images = train_images / 255.
@@ -49,6 +50,7 @@ validation_set_images = train_images[arr[num_train_samples:],:]
 validation_set_labels = train_labels[arr[num_train_samples:],:]
 
 #%% define tf model
+print('Setting up model.')
 x = tf.placeholder(tf.float32, shape=[None, image_size[0]*image_size[1]])
 y = tf.placeholder(tf.int32, shape=[None, num_labels])
 isTraining = tf.placeholder_with_default(True, shape=())
@@ -91,6 +93,7 @@ tf_rotate_images = tf.reshape(tf.contrib.image.rotate(x_reshaped, rotate_angle, 
                               [-1, image_size[0]*image_size[1]])
 
 #%% Get session and start training
+print('Start training.')
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     onehot_train_labels = tf.squeeze(tf.one_hot(train_set_labels, num_labels, on_value=1., off_value=0., axis=-1))
@@ -105,6 +108,7 @@ with tf.Session() as sess:
         # randomize data
         arr = np.arange(num_train_samples)
         np.random.shuffle(arr)
+        acc_vals = []
         for batch in range(num_batches):
             batch_images = train_set_images[arr[batch*batch_size:(batch+1)*batch_size],:]
             batch_labels = onehot_train_vals[arr[batch*batch_size:(batch+1)*batch_size],:]
@@ -118,10 +122,21 @@ with tf.Session() as sess:
 
             _, acc_val = sess.run([train_op, accuracy], feed_dict={x:batch_images, y:batch_labels, 
                                   isTraining:True, learning_rate:current_learning_rate})                
-    
-        print('Epoch', epoch, 'train set accuracy', acc_val)
-        acc_val, cost_val = sess.run([accuracy, cost], feed_dict={x:validation_set_images, y:onehot_validation_vals, isTraining:False})
-        print('Epoch', epoch, 'test set accuracy', acc_val,'cost', cost_val)
+            acc_vals.append(acc_val)
+        
+        print('Epoch', epoch, 'train set accuracy', np.mean(acc_vals))
+        
+        # run the validation set
+        acc_vals = []
+        cost_vals = []
+        for batch in range(num_validation_samples//batch_size):
+            bacth_images = validation_set_images[batch*batch_size:(batch+1)*batch_size, :]
+            bacth_labels = onehot_validation_vals[batch*batch_size:(batch+1)*batch_size, :]
+            acc_val, cost_val = sess.run([accuracy, cost], feed_dict={x:bacth_images, y:bacth_labels, isTraining:False})
+            acc_vals.append(acc_val)
+            cost_vals.append(cost_val)
+            
+        print('Epoch', epoch, 'test set accuracy', np.mean(acc_vals),'cost', np.mean(cost_vals))
         current_learning_rate *= learning_rate_decay
 
     pred_val, correct_vals, img_reshaped, acc_val = sess.run([pred, correct_pred, x_reshaped, accuracy], feed_dict={x:validation_set_images, y:onehot_validation_vals, isTraining:False})
@@ -148,6 +163,7 @@ with tf.Session() as sess:
         predictions.append(pred_test)
     
     result = np.concatenate(predictions)
+    
 imageId = np.arange(1, result.shape[0]+1)
 df = pd.DataFrame({'ImageId':imageId,'Label':result})
 df.to_csv('./cnn_submission2.csv',index=False)
