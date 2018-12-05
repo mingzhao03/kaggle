@@ -28,12 +28,9 @@ image_size = [28, 28]
 num_labels = 10
 num_validation_samples = 1000
 initial_learning_rate = 0.001
-learning_rate_decay = 0.99
 gamma = 3
 training_epochs = 400
 batch_size = 1000
-
-num_rotations = 7
 
 train_data = pd.read_csv(train_path).values.astype(np.float32)
 train_labels, train_images = np.split(train_data,[1],axis=1)
